@@ -1,5 +1,5 @@
 const express = require('express')
-const { sendFriendRequest, getFriendRequest, acceptFriendRequest, rejectFriendRequest, getFriends, cancelFriendRequest, deleteFriend } = require('../controllers/friend.Controller')
+const { sendFriendRequest, getFriendRequest, acceptFriendRequest, rejectFriendRequest, getFriends, cancelFriendRequest, deleteFriend } = require('../controllers/friend.controller')
 const verifyToken = require('../middlewares/auth.middleware')
 
 const router = express.Router();

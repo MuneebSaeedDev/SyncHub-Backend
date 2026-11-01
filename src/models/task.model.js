@@ -30,4 +30,7 @@ const Task = new mongoose.Schema({
     }
 }, { timestamps: true })
 
+Task.index({ owner_id: 1, createdAt: -1 });
+Task.index({ owner_id: 1, dueDate: 1 });
+
 module.exports = mongoose.model('Task', Task)

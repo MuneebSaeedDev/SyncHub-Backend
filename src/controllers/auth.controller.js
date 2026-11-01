@@ -17,14 +17,13 @@ const sendTokenResponse = (user, statusCode, res) => {
     const token = generateToken(user._id);
     const { exp } = jwt.decode(token); // cookie expiry always matches the JWT
     const expiresAt = new Date(exp * 1000)
-
     return res
         .status(statusCode)
         .cookie("token", token, {
             expires: expiresAt,
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
             path: "/"
         })
         .json({
@@ -37,8 +36,9 @@ const sendTokenResponse = (user, statusCode, res) => {
                 role: user.role,
                 authProvider: user.authProvider
             }
-        });
+        });    
 };
+
 
 const signUp = async (req, res) => {
     try {
@@ -55,7 +55,12 @@ const signUp = async (req, res) => {
                 message: "Password must be at least 8 characters"
             });
         }
+        if (typeof email !== "string" || typeof password !== "string") {
+            return res.status(400).json({ success: false, message: "Invalid email or password format" });
+        }
         const normalizedEmail = email.toLowerCase().trim();
+
+
         const existingUser = await User.findOne({ email: normalizedEmail })
         if (existingUser) {
             return res.status(409).json({
@@ -100,7 +105,11 @@ const signIn = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Please enter correct email and password"
-            })
+            });
+        }
+        // Add this check before .toLowerCase():
+        if (typeof email !== "string" || typeof password !== "string") {
+            return res.status(400).json({ success: false, message: "Invalid email or password format" });
         }
 
         const normalizedEmail = email.toLowerCase().trim();
