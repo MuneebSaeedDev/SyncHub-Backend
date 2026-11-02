@@ -2,6 +2,11 @@ const mongoose = require('mongoose')
 const User = require('../models/user.model')
 const bcrypt = require('bcrypt')
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require('google-auth-library')
+
+const googleClient = new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID
+)
 
 const generateToken = (id) => {
     return jwt.sign(
@@ -157,6 +162,86 @@ const signIn = async (req, res) => {
     }
 }
 
+// GOOGLE SIGNIN
+const googleSignIn = async (req, res) => {
+    try {
+        const { credential } = req.body
+
+        if (!credential || typeof credential !== 'string') {
+            return res.status(400).json({
+                success: false,
+                message: 'Google credential is required'
+            })
+        }
+
+        // Verify Google ID token
+        const ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID
+        })
+
+        const payload = ticket.getPayload()
+
+        if (
+            !payload ||
+            !payload.sub ||
+            !payload.email ||
+            payload.email_verified !== true
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: 'Google account verification failed'
+            })
+        }
+
+        const googleId = payload.sub
+        const normalizedEmail = payload.email.toLowerCase().trim()
+
+        // First, find user by Google ID
+        let user = await User.findOne({ googleId })
+
+        // If not found, check whether this email already exists
+        if (!user) {
+            user = await User.findOne({
+                email: normalizedEmail
+            })
+
+            if (user) {
+                // Link verified Google account to existing user
+                user.googleId = googleId
+                await user.save()
+            } else {
+                // Create a new Google user
+                user = await User.create({
+                    name: payload.name || normalizedEmail.split('@')[0],
+                    email: normalizedEmail,
+                    googleId,
+                    authProvider: 'google',
+                    role: 'user'
+                })
+            }
+        }
+
+        // Use the same JWT and cookie system as normal signin
+        return sendTokenResponse(user, 200, res)
+
+    } catch (error) {
+        console.error('Google signin error:', error)
+
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: 'This Google account is already linked to another user'
+            })
+        }
+
+        return res.status(401).json({
+            success: false,
+            message: 'Google authentication failed'
+        })
+    }
+}
+
 const logOut = async (req, res) => {
     return res
         .clearCookie("token", {
@@ -213,4 +298,4 @@ const getUserById = async (req, res) => {
     }
 };
 
-module.exports = { signUp, signIn, logOut, getUserById }
+module.exports = { signUp, signIn, googleSignIn, logOut, getUserById }
